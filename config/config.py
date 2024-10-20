@@ -4,7 +4,7 @@ import sys
 
 class DefaultConfig(object):
     env = 'default'
-    model = 'AlexNet'
+    model = 'RecommendNet'
     # model = 'resnet34'
     if sys.platform.startswith('linux'): 
         print('current os is linux')

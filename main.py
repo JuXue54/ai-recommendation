@@ -157,7 +157,12 @@ def val(model, dataloader, opt):
 
 
 def test():
-    pass
+    model = getattr(models, opt.model)(input_dim=10,hidden_dim=1,target_dim=1, batch_size=1000, name=opt.model)
+    # 5 days, 1000 stocks, and 10 attributes
+    input = V(t.randn(5, 1000, 10))
+    out = model(input)
+    print(out)
+    print(out.size())
 
 
 # Press the green button in the gutter to run the script.
