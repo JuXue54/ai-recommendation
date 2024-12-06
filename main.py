@@ -2,20 +2,25 @@
 
 # Press ⌃R to execute it or replace it with your code.
 # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
+import datetime
+import sys
+import time
+
 import fire
 import torch
 import torch as t
 from torch.autograd import Variable as V
 from torch.utils.data import DataLoader
 from torchnet import meter
-from torchvision.transforms import ToPILImage
-import sys
 
 import models
 from config.config import DefaultConfig
+from core.transformers import FinancialDataTransformer
 from data.dataset import ImageDataPath
-from models.RecommendNet import RecommendNet
+from db.mappers import StockSnapshotMapper
+from source.easyQuotationSource import EasyQuotationSource
 from utils.Visualizer import Visualizer
+
 try:
     import ipdb
 except:
@@ -28,6 +33,7 @@ if opt.use_gpu and sys.platform.startswith('darwin'):
 else:
     mps_device = None
 
+
 def to_gpu(data):
     if opt.use_gpu:
         if sys.platform.startswith('darwin'):
@@ -39,27 +45,40 @@ def to_gpu(data):
     return data
 
 
-def hello_world():
-    print('hello world')
 
-def print_hi(name=None):
-    data_path_set = ImageDataPath(opt.train_data_root, train=True)
-    train_Loader = DataLoader(data_path_set,
-                              batch_size=10,
-                              shuffle=True,
-                              num_workers=0)
-    # for ii,(data,label) in enumerate(train_Loader):
-    #     print(label)
-    it = enumerate(train_Loader)
-    ii, (data, label) = it.__next__()
-    to_pil = ToPILImage()
-    print(label[0])
-    print(data[0].size())
-    v = Visualizer()
-    v.img('img', data[0])
-    pic = to_pil(data[0])
-    pic.show()
+def test_db():
+    transformer = FinancialDataTransformer()
+    transformer.sync_all_future_yield()
+    # print(datetime.date.today())
+    # transformer.sync_trading_day()
 
+
+def snapshot():
+    curr = datetime.datetime.now()
+    print(f"start to snapshot")
+    source = EasyQuotationSource()
+    data = source.snapshot()
+
+    def transform_to_snapshot(items):
+        k, v = items
+        v['code'] = k
+        v.pop('time')
+        return v
+
+    res = list(map(transform_to_snapshot, data.items()))
+    rows = StockSnapshotMapper().insert_or_update_batch(res)
+    curr_1 = datetime.datetime.now()
+    # synchronize trading day
+    print(f"End snapshot and start sync trading day, time cost: {curr_1 - curr}")
+    transformer = FinancialDataTransformer()
+    transformer.sync_trading_day()
+    # synchronize future yield
+    curr_2 = datetime.datetime.now()
+    print(f"End sync trading day and start sync future yield, time cost: {curr_2 - curr_1}")
+    transformer.sync_all_future_yield()
+    curr_3 = datetime.datetime.now()
+    print(f"End sync future yield, time cost: {curr_3 - curr_2}")
+    print(f'current time is {curr_3}, return row count are {rows}')
 
 def try_visualizer():
     v = Visualizer()
@@ -118,7 +137,7 @@ def train(**kwargs):
 
             # if ii % opt.print_freq == opt.print_freq - 1:
             vis.plot('loss', loss_meter.value()[0])
-                # print('Train: The first target is %s, predicted value is %s' % (target[0], score[0]))
+            # print('Train: The first target is %s, predicted value is %s' % (target[0], score[0]))
 
         if opt.need_save:
             model.save()
@@ -157,7 +176,7 @@ def val(model, dataloader, opt):
 
 
 def test():
-    model = getattr(models, opt.model)(input_dim=10,hidden_dim=1,target_dim=1, batch_size=1000, name=opt.model)
+    model = getattr(models, opt.model)(input_dim=10, hidden_dim=1, target_dim=1, batch_size=1000, name=opt.model)
     # 5 days, 1000 stocks, and 10 attributes
     input = V(t.randn(5, 1000, 10))
     out = model(input)

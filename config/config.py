@@ -6,7 +6,7 @@ class DefaultConfig(object):
     env = 'default'
     model = 'RecommendNet'
     # model = 'resnet34'
-    if sys.platform.startswith('linux'): 
+    if sys.platform.startswith('linux'):
         print('current os is linux')
         train_data_root = '/mnt/e/data/dogs-vs-cats-redux-kernels-edition/train'
         test_data_root = '/mnt/e/data/dogs-vs-cats-redux-kernels-edition/train'
@@ -31,6 +31,14 @@ class DefaultConfig(object):
     lr = 0.001
     lr_decay = 0.95
     weight_decay = 1e-4
+    mysql_username = 'root'
+    mysql_password = 'beifa888'
+    mysql_host = '127.0.0.1'
+    mysql_port = 3306
+    mysql_schema = 'finance'
+    MYSQL_CONFIG = {
+        'url': f'mysql+pymysql://{mysql_username}:{mysql_password}@{mysql_host}:{mysql_port}/{mysql_schema}?charset=utf8mb4'
+    }
 
     def parse(self, **kwargs):
         for k, v in kwargs.items():
