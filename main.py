@@ -16,7 +16,7 @@ from torchnet import meter
 import models
 from config.config import DefaultConfig
 from core.transformers import FinancialDataTransformer
-from data.dataset import ImageDataPath
+from data.dataset import ImageDataPath, StockMarketData
 from db.mappers import StockSnapshotMapper
 from source.easyQuotationSource import EasyQuotationSource
 from utils.Visualizer import Visualizer
@@ -43,7 +43,6 @@ def to_gpu(data):
         else:
             raise Exception('Unsupported os')
     return data
-
 
 
 def test_db():
@@ -79,6 +78,7 @@ def snapshot():
     curr_3 = datetime.datetime.now()
     print(f"End sync future yield, time cost: {curr_3 - curr_2}")
     print(f'current time is {curr_3}, return row count are {rows}')
+
 
 def try_visualizer():
     v = Visualizer()
@@ -175,13 +175,63 @@ def val(model, dataloader, opt):
     return confusion_matrix, accuracy
 
 
+def collate_fn(batch):
+    # print(batch)
+    inputs, labels = zip(*batch)
+    inputs = torch.stack(inputs).permute(1, 0, 2)
+    labels = torch.stack(labels).permute(1, 0, 2)
+    return inputs, labels
+
+
 def test():
-    model = getattr(models, opt.model)(input_dim=10, hidden_dim=1, target_dim=1, batch_size=1000, name=opt.model)
-    # 5 days, 1000 stocks, and 10 attributes
-    input = V(t.randn(5, 1000, 10))
-    out = model(input)
-    print(out)
-    print(out.size())
+    vis = Visualizer(opt.env)
+    # step1: Model
+    model = getattr(models, opt.model)(input_dim=opt.attribute_num, hidden_dim=1, target_dim=1,
+                                       batch_size=opt.batch_size,
+                                       name=opt.model, device_func=to_gpu)
+    if opt.load_model_path:
+        model.load(opt.load_model_path)
+    to_gpu(model)
+    # step2: data
+    data = StockMarketData(from_date=datetime.date(2024, 9, 1))
+
+    train_data_loader = DataLoader(data, opt.batch_size,
+                                   shuffle=True,
+                                   num_workers=opt.num_workers,
+                                   collate_fn=collate_fn,
+                                   drop_last=True)
+    # for ii, (data, label) in enumerate(train_data_loader):
+    #     print(data.size())
+    #     print(label.size())
+
+    # step3: object function and optimizer
+    criterion = t.nn.CrossEntropyLoss()
+    lr = opt.lr
+    optimizer = t.optim.Adam(model.parameters(),
+                             lr=lr,
+                             weight_decay=opt.weight_decay)
+    # step4: statistic factor
+    loss_meter = meter.AverageValueMeter()
+    for epoch in range(opt.max_epoch):
+        loss_meter.reset()
+
+        for ii, (data, label) in enumerate(train_data_loader):
+            input = V(data)
+            target = V(label)
+            if opt.use_gpu:
+                input = to_gpu(input)
+                target = to_gpu(target)
+            optimizer.zero_grad()
+            score = model(input)
+            loss = criterion(score, target)
+            loss.backward()
+            optimizer.step()
+            # ipdb.set_trace()
+            loss_meter.add(loss.data.item())
+            vis.plot('loss', loss_meter.value()[0])
+
+        if opt.need_save:
+            model.save()
 
 
 # Press the green button in the gutter to run the script.

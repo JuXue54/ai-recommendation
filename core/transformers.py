@@ -22,7 +22,7 @@ class FinancialDataTransformer:
         compute yield of all stocks in future 5 days
         """
         from_date = date
-        dates = list(map(lambda d: d.date, TradingDayMapper().query_next_days(from_date)))
+        dates = TradingDayMapper().query_next_days(from_date)
         to_date = dates[-1]
         if len(dates) < 6:
             print(f"Not have enough dates, dates: {dates}")
@@ -59,7 +59,7 @@ class FinancialDataTransformer:
             if date >= curr:
                 print(f"current datasource is {date}")
                 break
-            dates = list(map(lambda model: model.date, TradingDayMapper().query_next_days(date, 2)))
+            dates = TradingDayMapper().query_next_days(date, 2)
             if len(dates) < 2:
                 print(f"No enough dates here, current date is {date}")
                 break

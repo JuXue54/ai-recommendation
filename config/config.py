@@ -16,13 +16,14 @@ class DefaultConfig(object):
         print('current os is macos')
         train_data_root = '/Users/jon/data/dogs-vs-cats-redux-kernels-edition/train'
         test_data_root = '/Users/jon/data/dogs-vs-cats-redux-kernels-edition/test'
-        load_model_path = 'checkpoints/AlexNet_0621_23:42:18.pth'
+        load_model_path = None
         use_gpu = True
     else:
         raise Exception('Unsupported OS!!!')
     # load_model_path = None
-    need_save = True
+    need_save = False
     batch_size = 32
+    attribute_num = 28
     num_workers = 4
     print_freq = 20
     debug_file = '/tmp/debug'

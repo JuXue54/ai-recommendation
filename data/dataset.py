@@ -1,9 +1,11 @@
 import os
 
+import torch as t
 from PIL import Image
 from torch.utils import data
-import torch as t
 from torchvision import transforms as T
+
+from db.mappers import StockSnapshotMapper, DatasourceMapper, StockProfitMapper, TradingDayMapper
 
 
 class ImageDataPath(data.Dataset):
@@ -58,3 +60,58 @@ class ImageDataPath(data.Dataset):
 
     def __len__(self):
         return len(self.imgs)
+
+
+class StockMarketData(data.Dataset):
+
+    def __init__(self, from_date, to_date=None, train=True, test=False):
+        """
+        Data are so small that all in the memory.
+        Adding lazy load in future
+        """
+        datasource_mapper = DatasourceMapper()
+        attributes_mapper = StockSnapshotMapper()
+        profit_mapper = StockProfitMapper()
+        trading_day_mapper = TradingDayMapper()
+        if to_date is None:
+            to_date = datasource_mapper.query_date('FUTURE_5_YIELD').date
+
+        all_attribute = attributes_mapper.query_range(from_date, to_date)
+        profits = profit_mapper.query_range(from_date, to_date)
+        dates = trading_day_mapper.query_range(from_date, to_date)
+        stock_codes = list(set(map(lambda p: p.code, profits)))
+        stock_num = len(stock_codes)
+        if test:
+            stock_codes = []
+        elif train:
+            stock_codes = stock_codes[:int(0.7 * stock_num)]
+        else:
+            stock_codes = stock_codes[int(0.7 * stock_num):]
+
+        self.size = len(stock_codes)
+        self.date_len = len(dates)
+        stock_dict = dict([(x, i) for i, x in enumerate(stock_codes)])
+        date_dict = dict([(x, i) for i, x in enumerate(dates)])
+        self.data = t.Tensor(len(dates), self.size, 28)
+        self.label = t.Tensor(len(dates), self.size, 1)
+        for x in all_attribute:
+            i = date_dict.get(x.date)
+            j = stock_dict.get(x.code)
+            self.data[i][j] = t.Tensor(
+                [x.open, x.close, x.high, x.low, x.buy, x.sell, x.turnover, x.volume, x.bid1, x.bid1_volume,
+                 x.bid2, x.bid2_volume, x.bid3, x.bid3_volume, x.bid4, x.bid4_volume, x.bid5, x.bid5_volume,
+                 x.ask1, x.ask1_volume, x.ask2, x.ask2_volume, x.ask3, x.ask3_volume,
+                 x.ask4, x.ask4_volume, x.ask5, x.ask5_volume])
+        for x in profits:
+            i = date_dict.get(x.date)
+            j = stock_dict.get(x.code)
+            self.label[i][j] = t.Tensor([x.yield5])
+
+    def __getitem__(self, index):
+        return self.data[:, index, :], self.label[:, index, :]
+
+    def __len__(self):
+        return self.size
+
+    def time_len(self):
+        return self.date_len

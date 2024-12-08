@@ -67,9 +67,16 @@ class TradingDayMapper:
         """
         query next several days after specific date, default 6
         """
-        return self.session.query(TradingDay).filter(TradingDay.date >= date).order_by(TradingDay.date.asc())\
-            .limit(offset).all()
+        return list(map(lambda d: d.date,
+                        self.session.query(TradingDay).filter(TradingDay.date >= date)
+                        .order_by(TradingDay.date.asc()).limit(offset).all()
+                        ))
 
+    def query_range(self, from_date, to_date):
+        return list(map(lambda d: d.date,
+                        self.session.query(TradingDay).filter(TradingDay.date.between(from_date, to_date))
+                        .order_by(TradingDay.date.asc()).all()
+                        ))
 
     def __del__(self):
         self.session.close()
@@ -92,6 +99,9 @@ class StockProfitMapper:
         except Exception as e:
             print('Some error happened', e.__repr__())
             self.session.rollback()
+
+    def query_range(self, from_date, to_date):
+        return self.session.query(StockProfit).filter(StockProfit.date.between(from_date, to_date)).all()
 
     def __del__(self):
         self.session.close()
